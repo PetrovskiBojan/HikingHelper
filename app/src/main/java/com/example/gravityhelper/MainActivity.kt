@@ -11,6 +11,7 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.example.gravityhelper.Motion
 import com.example.gravityhelper.MqttHelper
 import com.example.gravityhelper.R
 import com.example.gravityhelper.databinding.ActivityMainBinding
@@ -19,6 +20,8 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.data.ScatterDataSet
 import com.github.mikephil.charting.utils.EntryXComparator
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 
 import org.eclipse.paho.android.service.MqttAndroidClient
 import org.eclipse.paho.client.mqttv3.*
@@ -33,6 +36,7 @@ class MainActivity : AppCompatActivity(),SensorEventListener {
     private lateinit var data: ScatterData
     private lateinit var scatterChart: ScatterChart
     private lateinit var mqttClient: MqttAndroidClient
+    private lateinit var database : DatabaseReference
     private lateinit var mqttHelper: MqttHelper
     private lateinit var binding : ActivityMainBinding
 
@@ -41,7 +45,7 @@ class MainActivity : AppCompatActivity(),SensorEventListener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-
+        database = FirebaseDatabase.getInstance().getReference("Motions")
         mqttHelper = MqttHelper(applicationContext)
         startMqtt()
 
@@ -56,7 +60,7 @@ class MainActivity : AppCompatActivity(),SensorEventListener {
         val scatterDataSet = ScatterDataSet(null, "")
         scatterDataSet.setColor(Color.RED)
         scatterDataSet.setScatterShape(ScatterChart.ScatterShape.CIRCLE)
-        scatterDataSet.setScatterShapeSize(18f)
+        scatterDataSet.setScatterShapeSize(22f)
         data.addDataSet(scatterDataSet)
         scatterChart.data = data
         scatterChart.invalidate()
@@ -105,12 +109,16 @@ class MainActivity : AppCompatActivity(),SensorEventListener {
             if(x > xThreshold && y > yThreshold)  {
                 Log.d("Accelerometer", "significant motion detected")
                 Log.d("Accelerometer", "X = "+x+" Y = "+y+" Z = "+z)
-                if(x>-9 && y>-9  && x<10 && y<10 )  {
+                if(x>-15 && y>-15  && x<15 && y<15 )  {
 
                     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                     val currentDateTime = dateFormat.format(Date())
                     val payload = "Significant motion detected: X= "+x+" Y = "+y+" Z = "+z+"-- time : "+currentDateTime
                     mqttHelper.publish(MqttHelper.SUBSCRIPTION_TOPIC, payload)
+
+                    val motion = Motion(x,y,currentDateTime)
+                    database.child(motion.time).setValue(motion)
+
 
 
                     data.addEntry(Entry(x, y), 0)
