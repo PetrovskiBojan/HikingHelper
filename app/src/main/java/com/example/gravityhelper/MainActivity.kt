@@ -11,82 +11,44 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.example.gravityhelper.MqttHelper
 import com.example.gravityhelper.R
+import com.example.gravityhelper.databinding.ActivityMainBinding
 import com.github.mikephil.charting.charts.ScatterChart
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.ScatterData
 import com.github.mikephil.charting.data.ScatterDataSet
 import com.github.mikephil.charting.utils.EntryXComparator
-import com.jjoe64.graphview.GraphView
+
 import org.eclipse.paho.android.service.MqttAndroidClient
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
-import org.eclipse.paho.client.mqttv3.MqttException
-import org.eclipse.paho.client.mqttv3.MqttMessage
+import org.eclipse.paho.client.mqttv3.*
+import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : AppCompatActivity() {
+
+class MainActivity : AppCompatActivity(),SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private lateinit var accelerometer: Sensor
     private var sensorFrequency: Int = SensorManager.SENSOR_DELAY_NORMAL
-    private lateinit var graph: GraphView
     private lateinit var data: ScatterData
     private lateinit var scatterChart: ScatterChart
     private lateinit var mqttClient: MqttAndroidClient
-
-    private class SensorEventListenerImpl(private val data: ScatterData,private val accelerometer: Sensor,private val scatterChart: ScatterChart
-                                          ,private val xTreshold:Double,private val yThreshold:Double, private val zThreshold:Double) : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent?) {
-
-            if (event?.sensor == accelerometer) {
-                val x = event.values[0]
-                val y = event.values[1]
-                val z = event.values[2]
-                if(x > xTreshold && y > yThreshold)  {
-                    Log.d("Accelerometer", "significant motion detected")
-                    Log.d("Accelerometer", "X = "+x+" Y = "+y+" Z = "+z)
-                    if(x>-9 && y>-9  && x<10 && y<10 )  {
-
-
-                        data.addEntry(Entry(x, y), 0)
-                        val sortedEntries = TreeMap<Float, Entry>()
-
-                        val scatterDataSet = data.getDataSetByIndex(0) as ScatterDataSet
-                        for (i in 0 until scatterDataSet.entryCount) {
-                            val entry = scatterDataSet.getEntryForIndex(i)
-                            sortedEntries[entry.x] = entry
-                        }
-                        val sortedDataSet = ScatterDataSet(sortedEntries.values.toList(), scatterDataSet.label)
-                        data.addDataSet(sortedDataSet)
-                        data.notifyDataChanged()
-                        scatterChart.notifyDataSetChanged()
-                        scatterChart.invalidate()
-                    }
-                }
-            }
-        }
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {return}
-    }
-
-
-
+    private lateinit var mqttHelper: MqttHelper
+    private lateinit var binding : ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
 
+        mqttHelper = MqttHelper(applicationContext)
+        startMqtt()
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
 
         sensorFrequency = SensorManager.SENSOR_DELAY_UI
-
-        val xThreshold = getIntent().getDoubleExtra("xThreshold",2.5)
-        val yThreshold = getIntent().getDoubleExtra("yThreshold",2.5)
-        val zThreshold = getIntent().getDoubleExtra("zThreshold",2.5)
-
-
 
 
         scatterChart = findViewById(R.id.scatterChart)
@@ -94,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         val scatterDataSet = ScatterDataSet(null, "")
         scatterDataSet.setColor(Color.RED)
         scatterDataSet.setScatterShape(ScatterChart.ScatterShape.CIRCLE)
-        scatterDataSet.setScatterShapeSize(12f)
+        scatterDataSet.setScatterShapeSize(18f)
         data.addDataSet(scatterDataSet)
         scatterChart.data = data
         scatterChart.invalidate()
@@ -105,35 +67,73 @@ class MainActivity : AppCompatActivity() {
         xAxis.setAxisMaximum(10f)
         xAxis.setAxisMinimum(-10f)
 
-        val listener = SensorEventListenerImpl(data, accelerometer, scatterChart,xThreshold,yThreshold,zThreshold)
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI)
+    }
 
-        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_UI)
+    private fun startMqtt() {
+        mqttHelper.mqttClient.setCallback(object : MqttCallback {
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                Log.d(MqttHelper.TAG, "Receive message: ${message.toString()} from topic: $topic")
+            }
 
-        mqttClient = MqttAndroidClient(this, "tcp://localhost:1883", "AndroidSensorClient")
-        try {
-            mqttClient.connect()
-        } catch (e: MqttException) {
-            e.printStackTrace()
-        }
+            override fun connectionLost(cause: Throwable?) {
+                Log.d(MqttHelper.TAG, "Connection lost ${cause.toString()}")
+            }
 
+            override fun deliveryComplete(token: IMqttDeliveryToken?) {
 
-
+            }
+        })
     }
     override fun onPause() {
-        val xThreshold = getIntent().getDoubleExtra("xThreshold",2.5)
-        val yThreshold = getIntent().getDoubleExtra("yThreshold",2.5)
-        val zThreshold = getIntent().getDoubleExtra("zThreshold",2.5)
-        val listener = SensorEventListenerImpl(data, accelerometer, scatterChart, xThreshold,yThreshold,zThreshold)
-        sensorManager.unregisterListener(listener)
+        sensorManager.unregisterListener(this)
         super.onPause()
     }
     override fun onDestroy() {
+        sensorManager.unregisterListener(this)
+        super.onDestroy()
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
         val xThreshold = getIntent().getDoubleExtra("xThreshold",2.5)
         val yThreshold = getIntent().getDoubleExtra("yThreshold",2.5)
         val zThreshold = getIntent().getDoubleExtra("zThreshold",2.5)
-        val listener = SensorEventListenerImpl(data, accelerometer, scatterChart, xThreshold,yThreshold,zThreshold)
-        sensorManager.unregisterListener(listener)
-        super.onDestroy()
+        if (event?.sensor == accelerometer) {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+            if(x > xThreshold && y > yThreshold)  {
+                Log.d("Accelerometer", "significant motion detected")
+                Log.d("Accelerometer", "X = "+x+" Y = "+y+" Z = "+z)
+                if(x>-9 && y>-9  && x<10 && y<10 )  {
+
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val currentDateTime = dateFormat.format(Date())
+                    val payload = "Significant motion detected: X= "+x+" Y = "+y+" Z = "+z+"-- time : "+currentDateTime
+                    mqttHelper.publish(MqttHelper.SUBSCRIPTION_TOPIC, payload)
+
+
+                    data.addEntry(Entry(x, y), 0)
+                    val sortedEntries = TreeMap<Float, Entry>()
+
+                    val scatterDataSet = data.getDataSetByIndex(0) as ScatterDataSet
+                    for (i in 0 until scatterDataSet.entryCount) {
+                        val entry = scatterDataSet.getEntryForIndex(i)
+                        sortedEntries[entry.x] = entry
+                    }
+                    val sortedDataSet = ScatterDataSet(sortedEntries.values.toList(), scatterDataSet.label)
+
+                    data.addDataSet(sortedDataSet)
+                    data.notifyDataChanged()
+                    scatterChart.notifyDataSetChanged()
+                    scatterChart.invalidate()
+                }
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+       return
     }
 
 }

@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">GravityHelper</string>
+    <string name="sensorData">Sensor data</string>
+    <string name="simulateData">Simulate data</string>
+    <string name="xAxisThreshold"> X-axis threshold</string>
+    <string name="yAxisThreshold"> Y-axis threshold</string>
+    <string name="xAxisValue">X-axis value</string>
+    <string name="yAxisValue">Y-axis value</string>
+    <string name="sendData">Send data</string>
+    <string name="Back">Back</string>
 </resources>

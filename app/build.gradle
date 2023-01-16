@@ -21,6 +21,11 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            buildConfigField("String", "mqttServerUri", "tcp://broker.emqx.io:1883")
+            buildConfigField("String", "mqttUser", "user")
+            buildConfigField("String", "mqttPassword", "password")
+            buildConfigField("String", "mqttPublishTopic", "HikingHelper/sensors/gravity")
+            buildConfigField("String", "mqttSubscriptionTopic", "HikingHelper/sensors/gravity")
         }
     }
     buildFeatures {
@@ -48,10 +53,13 @@ dependencies {
     implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
     implementation 'com.squareup.okhttp3:okhttp:4.9.0'
 
-    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.1'
+
 
     implementation 'com.github.AnyChart:AnyChart-Android:1.1.2'
     implementation 'com.jjoe64:graphview:4.2.2'
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.4'
+    implementation 'org.eclipse.paho:org.eclipse.paho.android.service:1.1.1'
 
 }
